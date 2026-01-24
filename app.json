@@ -11,6 +11,11 @@
     "ios": {
       "supportsTablet": true
     },
+    "androidNavigationBar": {
+      "visible": "sticky-immersive",
+      "backgroundColor": "#000000",
+      "barStyle": "light-content"
+    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -28,6 +33,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-navigation-bar",
       [
         "expo-splash-screen",
         {
