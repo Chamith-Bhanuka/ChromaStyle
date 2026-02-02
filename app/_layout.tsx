@@ -4,6 +4,8 @@ import { View, StatusBar, Platform } from 'react-native';
 import { useThemeStore} from "@/store/themeStore";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as NavigationBar from 'expo-navigation-bar';
+import { LoaderProvider } from '@/context/LoaderContext';
+import { AuthProvider } from '@/context/AuthContext';
 
 export default function RootLayout() {
     const { initialize, isDark, colors } = useThemeStore();
@@ -21,14 +23,18 @@ export default function RootLayout() {
     }, [isDark, colors.background]);
 
     return (
-        <SafeAreaProvider>
+      <LoaderProvider>
+        <AuthProvider>
+          <SafeAreaProvider>
             <View style={{ flex: 1, backgroundColor: colors.background }}>
-                <StatusBar
-                    barStyle={isDark ? 'light-content' : 'dark-content'}
-                    backgroundColor={colors.background}
-                />
-                <Slot />
+              <StatusBar
+                barStyle={isDark ? 'light-content' : 'dark-content'}
+                backgroundColor={colors.background}
+              />
+              <Slot />
             </View>
-        </SafeAreaProvider>
+          </SafeAreaProvider>
+        </AuthProvider>
+      </LoaderProvider>
     );
 }
