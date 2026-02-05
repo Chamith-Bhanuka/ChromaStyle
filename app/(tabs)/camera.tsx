@@ -19,7 +19,7 @@ import {
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
-import { useWardrobeStore } from '../../store/wardrobeStore';
+import { useWardrobeStore } from '@/store/wardrobeStore';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
@@ -32,21 +32,28 @@ import Animated, {
   cancelAnimation,
 } from 'react-native-reanimated';
 
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+// We use 'require' for ImageColors to avoid hard crashes if it's missing
+let ImageColors: any;
+try {
+  ImageColors = require('react-native-image-colors').getColors;
+} catch (err) {
+  console.log('ImageColors module not available (Expo Go mode)');
+}
+
 const { width } = Dimensions.get('window');
 const SCAN_SIZE = width * 0.7;
 
-// --- 1. ISOLATED SCANNER COMPONENT (Fixes Animation Bug) ---
+// --- SCANNER OVERLAY ---
 const ScannerOverlay = () => {
   const scanLineY = useSharedValue(0);
 
   useEffect(() => {
-    // Reset to 0 whenever this component mounts
     scanLineY.value = 0;
-    // Start Loop
     scanLineY.value = withRepeat(
       withTiming(SCAN_SIZE, { duration: 1500, easing: Easing.linear }),
-      -1, // Infinite
-      true // Reverse
+      -1,
+      true
     );
     return () => cancelAnimation(scanLineY);
   }, []);
@@ -62,12 +69,10 @@ const ScannerOverlay = () => {
         <View style={styles.middleMaskRow}>
           <View style={styles.maskSide} />
           <View style={styles.scanWindow}>
-            {/* Tech Corners */}
             <View style={[styles.corner, styles.tl]} />
             <View style={[styles.corner, styles.tr]} />
             <View style={[styles.corner, styles.bl]} />
             <View style={[styles.corner, styles.br]} />
-            {/* The Moving Laser */}
             <Animated.View style={[styles.scanLaser, animatedStyle]} />
           </View>
           <View style={styles.maskSide} />
@@ -92,7 +97,6 @@ export default function CameraScreen() {
 
   const { setOutfitImage } = useWardrobeStore();
 
-  // Shutter Button Animation
   const shutterScale = useSharedValue(1);
   const shutterAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: shutterScale.value }],
@@ -102,7 +106,6 @@ export default function CameraScreen() {
     if (dateToLog) setFacing('front');
   }, [dateToLog]);
 
-  // --- PERMISSIONS ---
   if (!permission) return <View style={{ backgroundColor: '#000', flex: 1 }} />;
   if (!permission.granted) {
     return (
@@ -135,17 +138,81 @@ export default function CameraScreen() {
         async () => {
           const photo = await cameraRef.current?.takePictureAsync({
             quality: 0.8,
-            base64: true,
+            base64: false,
           });
 
           if (photo?.uri) {
             if (dateToLog) {
+              // LOG MODE
               setOutfitImage(dateToLog, photo.uri);
               router.back();
             } else {
+              // SCAN MODE
+
+              // 1. Crop Image (Simulate Focus Area)
+              const cropSize = photo.width * 0.7;
+              const originX = (photo.width - cropSize) / 2;
+              const originY = (photo.height - cropSize) / 2;
+
+              const croppedResult = await manipulateAsync(
+                photo.uri,
+                [
+                  {
+                    crop: {
+                      originX: originX,
+                      originY: originY,
+                      width: cropSize,
+                      height: cropSize,
+                    },
+                  },
+                ],
+                { format: SaveFormat.JPEG }
+              );
+
+              // 2. Safe Color Extraction
+              let uniqueColors = [];
+
+              try {
+                // Check if native module exists
+                if (ImageColors) {
+                  const result = await ImageColors(croppedResult.uri, {
+                    fallback: '#000000',
+                    cache: true,
+                    key: croppedResult.uri,
+                  });
+
+                  const palette = [];
+                  if (result.platform === 'android') {
+                    if (result.dominant) palette.push(result.dominant);
+                    if (result.vibrant) palette.push(result.vibrant);
+                    if (result.darkVibrant) palette.push(result.darkVibrant);
+                  } else if (result.platform === 'ios') {
+                    if (result.primary) palette.push(result.primary);
+                    if (result.secondary) palette.push(result.secondary);
+                    if (result.detail) palette.push(result.detail);
+                  }
+                  uniqueColors = [...new Set(palette)].filter((c) =>
+                    /^#[0-9A-F]{6}$/i.test(c)
+                  );
+                } else {
+                  throw new Error('Native module missing');
+                }
+              } catch (e) {
+                // FALLBACK: If scanning fails (Expo Go), use random vibrant colors
+                // so the app flow doesn't break for you right now.
+                console.warn(
+                  'Using Fallback Colors (Native Scanner Unavailable in Expo Go)'
+                );
+                uniqueColors = ['#E74C3C', '#3498DB', '#F1C40F', '#2ECC71'];
+              }
+
+              // 3. Send to Editor
               router.push({
-                pathname: '/camera/editor',
-                params: { imageUri: photo.uri },
+                pathname: '/atelier',
+                params: {
+                  imageUri: photo.uri,
+                  scannedColors: JSON.stringify(uniqueColors),
+                },
               });
             }
           }
@@ -154,6 +221,7 @@ export default function CameraScreen() {
       );
     } catch (error) {
       console.log('Capture failed', error);
+      Alert.alert('Error', 'Failed to capture image.');
     }
   };
 
@@ -167,7 +235,6 @@ export default function CameraScreen() {
     <View style={styles.container}>
       <StatusBar hidden />
 
-      {/* LAYER 1: CAMERA */}
       <CameraView
         style={StyleSheet.absoluteFill}
         facing={facing}
@@ -176,10 +243,8 @@ export default function CameraScreen() {
         onCameraReady={() => setIsCameraReady(true)}
       />
 
-      {/* LAYER 2: SCANNER OVERLAY (Uses Isolated Component) */}
       {facing === 'back' && <ScannerOverlay />}
 
-      {/* LAYER 3: SCREEN FLASH */}
       {screenFlash && (
         <View
           style={[
@@ -190,9 +255,7 @@ export default function CameraScreen() {
         />
       )}
 
-      {/* LAYER 4: UI CONTROLS */}
       <SafeAreaView style={[styles.uiContainer, { zIndex: 3 }]}>
-        {/* HEADER */}
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => router.back()}
@@ -223,9 +286,7 @@ export default function CameraScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* FOOTER */}
         <View style={styles.footer}>
-          {/* Gallery Btn */}
           <TouchableOpacity style={styles.sideBtn} disabled>
             {dateToLog ? (
               <View style={styles.logIndicator}>
@@ -238,7 +299,6 @@ export default function CameraScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Shutter */}
           <TouchableOpacity onPress={takePicture}>
             <Animated.View
               style={[
@@ -258,7 +318,6 @@ export default function CameraScreen() {
             </Animated.View>
           </TouchableOpacity>
 
-          {/* Flip Btn */}
           <TouchableOpacity onPress={toggleCamera} style={styles.sideBtn}>
             <BlurView intensity={20} style={styles.flipBtn}>
               <RefreshCcw color="#fff" size={22} />
@@ -272,8 +331,6 @@ export default function CameraScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-
-  // Permissions
   permissionContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -300,9 +357,7 @@ const styles = StyleSheet.create({
     borderRadius: 40,
   },
   permButtonText: { fontWeight: 'bold', fontSize: 16, color: '#000' },
-
   uiContainer: { flex: 1, justifyContent: 'space-between' },
-
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -315,7 +370,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
     borderRadius: 30,
   },
-
   modeBadge: {
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -330,7 +384,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 1,
   },
-
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -339,8 +392,6 @@ const styles = StyleSheet.create({
     paddingBottom: 50,
     paddingTop: 20,
   },
-
-  // SHUTTER
   shutterOuter: {
     width: 80,
     height: 80,
@@ -365,8 +416,6 @@ const styles = StyleSheet.create({
     height: 70,
     borderRadius: 35,
   },
-
-  // SIDES
   sideBtn: { width: 60, alignItems: 'center', justifyContent: 'center' },
   galleryBtn: {
     width: 48,
@@ -391,13 +440,10 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   logText: { fontSize: 10, fontWeight: 'bold', color: '#000' },
-
-  // SCANNER MASK
   maskContainer: { flex: 1 },
   maskRow: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
   middleMaskRow: { height: SCAN_SIZE, flexDirection: 'row' },
   maskSide: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
-
   scanWindow: { width: SCAN_SIZE, height: SCAN_SIZE, position: 'relative' },
   scanLaser: {
     width: '100%',
@@ -408,7 +454,6 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 5,
   },
-
   corner: {
     position: 'absolute',
     width: 20,
