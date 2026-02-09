@@ -1,50 +1,72 @@
-# Welcome to your Expo app 👋
+# 🎨 ChromaStyle: AI-Powered Wardrobe & Color Analysis
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+**ChromaStyle** is a sophisticated mobile application designed to digitize your wardrobe, analyze fabric colors using your camera, and plan your daily outfits with AI precision. Built with **React Native (Expo)** and **Firebase**, it blends high-end fashion aesthetics with powerful utility.
 
-## Get started
+---
 
-1. Install dependencies
+## 📱 App Overview
 
-   ```bash
-   npm install
-   ```
+ChromaStyle serves as your personal digital atelier. It solves the classic **“I have nothing to wear”** problem by:
 
-2. Start the app
+- **Digitizing your closet** — catalog your clothes by category and color
+- **Smart color scanning** — detect exact fabric colors using your camera
+- **Outfit logging** — track your daily style with a Selfie Log
+- **Weekly planning** — organize outfits visually with AI-assisted planning
 
-   ```bash
-   npx expo start
-   ```
+---
 
-In the output, you'll find options to open the app in a
+## ✨ Key Features
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### 🎨 AI Color Scanner
+Point your camera at any fabric to extract its dominant color palette:
+- **Primary**
+- **Vibrant**
+- **Accent**
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+Save colors instantly to your digital wardrobe.
 
-## Get a fresh project
+### 👗 Virtual Wardrobe
+A visual inventory of:
+- Tops
+- Bottoms
+- Footwear
 
-When you're ready, run:
+All synced in real time with **Firebase Firestore**.
 
-```bash
-npm run reset-project
-```
+### 📅 Visual Planner
+- Drag-and-drop outfits into a weekly grid
+- Auto-generate outfit plans with AI assistance
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 📸 Selfie Log
+A dedicated **Outfit of the Day** camera mode that:
+- Saves your look to a specific date
+- Builds a history of your best outfits
 
-## Learn more
+### ☁️ Cloud Sync
+- Secure authentication with **Firebase Auth**
+- Real-time cloud storage via **Firestore**
 
-To learn more about developing your project with Expo, look at the following resources:
+---
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## 🖼️ Screenshots
 
-## Join the community
+> _Replace the placeholder links below with your actual screenshots after uploading them._
 
-Join our community of developers creating universal apps.
+---
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## 📺 Demo Video
+
+Watch the full workflow—from scanning a shirt to planning the week:
+
+---
+
+## 🚀 Setup Instructions
+
+Follow these steps to run the project locally.
+
+### Prerequisites
+
+- **Node.js** v18+
+- **Expo CLI**
+  ```bash
+  npm install -g expo-cli
