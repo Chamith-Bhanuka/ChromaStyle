@@ -185,7 +185,7 @@ export default function EditorScreen() {
           </TouchableOpacity>
           <Text style={[styles.title, { color: colors.text }]}>Atelier</Text>
           <TouchableOpacity
-            onPress={() => router.push('/(tabs)/home')}
+            onPress={() => router.push('/wardrobe')}
             style={styles.iconBtn}
           >
             <Check color={colors.primary} size={24} />
