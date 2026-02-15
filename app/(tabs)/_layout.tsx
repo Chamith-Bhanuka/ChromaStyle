@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { Tabs } from 'expo-router';
-import { Home, Shirt, Camera, Calendar, User } from 'lucide-react-native';
+import { Palette, Shirt, Camera, Calendar, User } from 'lucide-react-native';
 import { useThemeStore } from '@/store/themeStore';
 
 export default function TabLayout() {
@@ -33,7 +33,7 @@ export default function TabLayout() {
         name="atelier"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} Icon={Home} colors={colors} />
+            <TabIcon focused={focused} Icon={Palette} colors={colors} />
           ),
         }}
       />
