@@ -66,8 +66,8 @@ export default function LoginScreen() {
 
       Alert.alert('Success', 'Login successfully!', [
         {
-          text: 'Go to Tasks',
-          onPress: () => router.push('/(tabs)/home'),
+          text: 'Go to Planner',
+          onPress: () => router.push('/planner'),
         },
       ]);
     } catch (error) {

@@ -149,7 +149,7 @@ export default function WardrobeScreen() {
           <TouchableOpacity
             style={[styles.addDot, { borderColor: colors.inactive }]}
             // FIX: Cast path as any to bypass strict route checking errors
-            onPress={() => router.push('/home' as any)}
+            onPress={() => router.push('/(tabs)/atelier' as any)}
           >
             <Plus size={10} color={colors.inactive} />
           </TouchableOpacity>
@@ -214,7 +214,9 @@ export default function WardrobeScreen() {
             <Text style={{ color: colors.inactive }}>
               Your cupboard is empty.
             </Text>
-            <TouchableOpacity onPress={() => router.push('/home' as any)}>
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/atelier' as any)}
+            >
               <Text style={{ color: colors.primary, marginTop: 10 }}>
                 Scan Items +
               </Text>

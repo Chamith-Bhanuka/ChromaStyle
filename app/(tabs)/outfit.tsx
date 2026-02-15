@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,185 +6,516 @@ import {
   Dimensions,
   TouchableOpacity,
   Image,
+  FlatList,
+  Modal,
+  Share,
+  Alert,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import {
   ArrowLeft,
   Camera,
   Trash2,
   Share2,
-  Shuffle,
+  Play,
+  Pause,
+  X,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  LogOut,
+  ChevronRight as ArrowRight,
 } from 'lucide-react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useThemeStore } from '../../store/themeStore';
-import { useWardrobeStore } from '../../store/wardrobeStore';
+import { useThemeStore } from '@/store/themeStore';
 import * as Haptics from 'expo-haptics';
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  runOnJS,
+  interpolate,
+  Extrapolate,
+} from 'react-native-reanimated';
+import { auth } from '@/services/firebase';
+
+import * as FileSystem from 'expo-file-system/legacy';
+import { signOut } from '@firebase/auth';
 
 const { width, height } = Dimensions.get('window');
+const SLIDER_WIDTH = width - 40;
+const BUTTON_SIZE = 54;
+const SWIPE_RANGE = SLIDER_WIDTH - BUTTON_SIZE - 8;
 
 export default function OutfitScreen() {
   const router = useRouter();
-  const { date } = useLocalSearchParams();
-  const dateKey = date as string;
+  const params = useLocalSearchParams();
 
-  const { colors, isDark } = useThemeStore();
-  const { outfits, setOutfitImage, autoGenerateWeek } = useWardrobeStore();
+  const dateKey =
+    (params.date as string) || new Date().toISOString().split('T')[0];
+  const isToday = dateKey === new Date().toISOString().split('T')[0];
 
-  const currentOutfit = outfits[dateKey] || {};
-  const hasImage = !!currentOutfit.imageUri;
+  const { colors } = useThemeStore();
 
-  // --- ACTIONS ---
+  // UI State
+  const [images, setImages] = useState<string[]>([]);
+  const [isSlideshowOpen, setIsSlideshowOpen] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
 
-  const handleCapture = () => {
+  // Camera State
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef<CameraView>(null);
+  const intervalRef = useRef<any>(null);
+
+  // Animation State for Logout
+  const translateX = useSharedValue(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadImagesFromFolder();
+      return () => stopSlideshow();
+    }, [dateKey])
+  );
+
+  const loadImagesFromFolder = async () => {
+    try {
+      const docDir = FileSystem.documentDirectory?.endsWith('/')
+        ? FileSystem.documentDirectory
+        : `${FileSystem.documentDirectory}/`;
+
+      const dir = `${docDir}outfits/${dateKey}/`;
+      const dirInfo = await FileSystem.getInfoAsync(dir);
+
+      if (dirInfo.exists) {
+        const files = await FileSystem.readDirectoryAsync(dir);
+        const imagePaths = files
+          .filter((f) => f.match(/\.(jpg|jpeg|png)$/i))
+          .map((f) => dir + f)
+          .reverse();
+
+        setImages(imagePaths);
+      } else {
+        setImages([]);
+      }
+    } catch (error) {
+      console.error('Error accessing date folder:', error);
+    }
+  };
+
+  const onLogout = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert('Logout', 'You have been logged out.', [
+      { text: 'OK', onPress: () => handleLogout() },
+    ]);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.replace('/login');
+    } catch (error: any) {
+      Alert.alert('Logout Failed', error.message);
+    }
+  };
+
+  const gesture = Gesture.Pan()
+    .onUpdate((event) => {
+      translateX.value = Math.min(Math.max(0, event.translationX), SWIPE_RANGE);
+    })
+    .onEnd(() => {
+      if (translateX.value > SWIPE_RANGE * 0.8) {
+        translateX.value = withSpring(SWIPE_RANGE);
+        runOnJS(onLogout)();
+      } else {
+        translateX.value = withSpring(0);
+      }
+    });
+
+  const animatedHandleStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  const animatedTextStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      translateX.value,
+      [0, SWIPE_RANGE * 0.5],
+      [1, 0],
+      Extrapolate.CLAMP
+    ),
+  }));
+
+  // day nav
+  const navigateDay = (offset: number) => {
     Haptics.selectionAsync();
-    // Navigate to Camera with the date parameter
-    router.push({ pathname: '/camera', params: { date: dateKey } });
+    const current = new Date(dateKey);
+    current.setDate(current.getDate() + offset);
+    const newDate = current.toISOString().split('T')[0];
+    router.setParams({ date: newDate });
   };
 
-  const handleDeletePhoto = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    setOutfitImage(dateKey, ''); // Clear image
+  // cam actions
+  const handleOpenStats = async () => {
+    if (!permission?.granted) {
+      const res = await requestPermission();
+      if (!res.granted) {
+        Alert.alert(
+          'Permission Required',
+          'Camera access is needed to log your outfit.'
+        );
+        return;
+      }
+    }
+    setIsCameraOpen(true);
   };
 
-  const handleShuffle = () => {
-    // Optional: Keep shuffle functionality for text-based fallback
-    // implementation depends on if you still want text data
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  const takeSelfie = async () => {
+    if (!cameraRef.current) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    try {
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.8,
+        skipProcessing: true,
+      });
+
+      if (photo?.uri) {
+        const fileName = `selfie_${Date.now()}.jpg`;
+        const docDir = FileSystem.documentDirectory?.endsWith('/')
+          ? FileSystem.documentDirectory
+          : `${FileSystem.documentDirectory}/`;
+        const folderPath = `${docDir}outfits/${dateKey}/`;
+        const newPath = folderPath + fileName;
+
+        await FileSystem.makeDirectoryAsync(folderPath, {
+          intermediates: true,
+        });
+        await FileSystem.moveAsync({ from: photo.uri, to: newPath });
+
+        setIsCameraOpen(false);
+        loadImagesFromFolder();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to capture image.');
+    }
+  };
+
+  const handleShare = async () => {
+    if (images.length === 0) return;
+    try {
+      const imageToShare = isSlideshowOpen ? images[currentIndex] : images[0];
+      await Share.share({
+        url: imageToShare,
+        message: `Check out my outfit from ${new Date(dateKey).toLocaleDateString()}!`,
+      });
+    } catch (error) {
+      Alert.alert('Error', 'Could not share the image.');
+    }
+  };
+
+  const stopSlideshow = () => {
+    setIsPlaying(false);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+  };
+
+  const startSlideshow = () => {
+    setIsPlaying(true);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % images.length);
+    }, 2500);
+  };
+
+  const openSlideshow = (index: number) => {
+    setCurrentIndex(index);
+    setIsSlideshowOpen(true);
+    if (images.length > 1) startSlideshow();
+  };
+
+  const handleDeletePhoto = async (uri: string) => {
+    Alert.alert('Delete Selfie', 'Remove this look from your history?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await FileSystem.deleteAsync(uri);
+          loadImagesFromFolder();
+        },
+      },
+    ]);
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <SafeAreaView style={styles.safeArea}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.iconBtn}
-          >
-            <ArrowLeft color={colors.text} size={24} />
-          </TouchableOpacity>
-          <View>
-            <Text style={[styles.dateTitle, { color: colors.text }]}>
-              {new Date(dateKey).toLocaleDateString('en-US', {
-                weekday: 'long',
-              })}
-            </Text>
-            <Text style={[styles.dateSub, { color: colors.inactive }]}>
-              {new Date(dateKey).toLocaleDateString('en-US', {
-                month: 'long',
-                day: 'numeric',
-              })}
-            </Text>
-          </View>
-          <TouchableOpacity style={styles.iconBtn}>
-            <Share2 color={colors.text} size={24} />
-          </TouchableOpacity>
-        </View>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <SafeAreaView style={styles.safeArea}>
+          {/* HEADER */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.iconBtn}
+            >
+              <ArrowLeft color={colors.text} size={24} />
+            </TouchableOpacity>
 
-        {/* --- MAIN CONTENT AREA --- */}
-        <View style={styles.content}>
-          {hasImage ? (
-            // STATE 1: SHOW CAPTURED PHOTO
-            <View style={styles.photoContainer}>
-              <Image
-                source={{ uri: currentOutfit.imageUri }}
-                style={styles.fullImage}
-                resizeMode="cover"
-              />
-
-              {/* Overlay Controls */}
-              <View style={styles.imageOverlay}>
-                <TouchableOpacity
-                  onPress={handleDeletePhoto}
-                  style={styles.deleteBtn}
-                >
-                  <Trash2 color="#fff" size={20} />
-                  <Text style={styles.overlayText}>Retake</Text>
-                </TouchableOpacity>
+            <View style={styles.dateSelector}>
+              <TouchableOpacity onPress={() => navigateDay(-1)}>
+                <ChevronLeft color={colors.inactive} size={20} />
+              </TouchableOpacity>
+              <View style={{ alignItems: 'center', marginHorizontal: 15 }}>
+                <Text style={[styles.dateTitle, { color: colors.text }]}>
+                  {isToday
+                    ? 'Today'
+                    : new Date(dateKey).toLocaleDateString('en-US', {
+                        weekday: 'long',
+                      })}
+                </Text>
+                <Text style={[styles.dateSub, { color: colors.inactive }]}>
+                  {new Date(dateKey).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </Text>
               </View>
+              <TouchableOpacity onPress={() => navigateDay(1)}>
+                <ChevronRight color={colors.inactive} size={20} />
+              </TouchableOpacity>
             </View>
-          ) : (
-            // STATE 2: EMPTY STATE (PROMPT TO CAPTURE)
-            <View style={[styles.emptyState, { borderColor: colors.inactive }]}>
-              <TouchableOpacity
-                onPress={handleCapture}
-                style={styles.captureBtn}
-              >
-                <View
+
+            <TouchableOpacity onPress={handleShare} style={styles.iconBtn}>
+              <Share2 color={colors.text} size={24} />
+            </TouchableOpacity>
+          </View>
+
+          {/* CONTENT */}
+          <View style={styles.content}>
+            {images.length > 0 ? (
+              <View style={{ flex: 1 }}>
+                <TouchableOpacity
                   style={[
-                    styles.captureIconCircle,
+                    styles.playButton,
                     { backgroundColor: colors.primary },
                   ]}
+                  onPress={() => openSlideshow(0)}
                 >
-                  <Camera size={40} color="#fff" />
-                </View>
-                <Text style={[styles.captureText, { color: colors.text }]}>
-                  Capture Today's Look
-                </Text>
-                <Text
-                  style={{
-                    color: colors.inactive,
-                    marginTop: 8,
-                    textAlign: 'center',
-                  }}
-                >
-                  Tap to open selfie camera
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {/* --- BOTTOM CONTROLS --- */}
-        {/* You can hide these if an image exists, or keep them for extra data */}
-        <View
-          style={[
-            styles.bottomBar,
-            { backgroundColor: isDark ? '#1a1a1a' : '#fff' },
-          ]}
-        >
-          <View style={styles.infoRow}>
-            <Text style={[styles.infoTitle, { color: colors.text }]}>
-              {hasImage ? 'Look Captured' : 'No Look Logged'}
-            </Text>
-            {!hasImage && (
-              <TouchableOpacity onPress={handleShuffle} style={styles.miniBtn}>
-                <Shuffle size={16} color={colors.text} />
-                <Text
-                  style={{ color: colors.text, fontSize: 12, marginLeft: 6 }}
-                >
-                  Suggest
-                </Text>
-              </TouchableOpacity>
+                  <Play fill="#fff" color="#fff" size={16} />
+                  <Text style={styles.playButtonText}>Play Slideshow</Text>
+                </TouchableOpacity>
+                <FlatList
+                  data={images}
+                  keyExtractor={(item) => item}
+                  numColumns={2}
+                  contentContainerStyle={{ paddingBottom: 150 }}
+                  columnWrapperStyle={{ gap: 12 }}
+                  renderItem={({ item, index }) => (
+                    <TouchableOpacity
+                      onPress={() => openSlideshow(index)}
+                      style={styles.gridImageContainer}
+                    >
+                      <Image source={{ uri: item }} style={styles.gridImage} />
+                      {isToday && (
+                        <TouchableOpacity
+                          style={styles.miniDeleteBtn}
+                          onPress={() => handleDeletePhoto(item)}
+                        >
+                          <Trash2 size={14} color="#fff" />
+                        </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                />
+              </View>
+            ) : (
+              <View
+                style={[styles.emptyState, { borderColor: colors.inactive }]}
+              >
+                {isToday ? (
+                  <TouchableOpacity
+                    onPress={handleOpenStats}
+                    style={styles.captureBtnLarge}
+                  >
+                    <View
+                      style={[
+                        styles.captureCircle,
+                        { backgroundColor: colors.primary },
+                      ]}
+                    >
+                      <Camera size={40} color="#fff" />
+                    </View>
+                    <Text style={styles.captureText}>
+                      {"Record Today's Look"}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={{ color: colors.inactive, fontSize: 16 }}>
+                    No looks recorded for this day
+                  </Text>
+                )}
+              </View>
             )}
           </View>
-        </View>
-      </SafeAreaView>
-    </View>
+
+          {/* SWIPE TO LOGOUT */}
+          <View style={styles.logoutWrapper}>
+            <View
+              style={[
+                styles.sliderTrack,
+                { backgroundColor: colors.inactive + '20' },
+              ]}
+            >
+              <Animated.Text
+                style={[
+                  styles.sliderText,
+                  { color: colors.text },
+                  animatedTextStyle,
+                ]}
+              >
+                Swipe to Logout
+              </Animated.Text>
+              <GestureDetector gesture={gesture}>
+                <Animated.View
+                  style={[
+                    styles.sliderHandle,
+                    { backgroundColor: colors.primary },
+                    animatedHandleStyle,
+                  ]}
+                >
+                  <LogOut color="#fff" size={24} />
+                </Animated.View>
+              </GestureDetector>
+            </View>
+          </View>
+
+          {/* FAB (Only for Today) */}
+          {isToday && images.length > 0 && (
+            <TouchableOpacity
+              style={[styles.fab, { backgroundColor: colors.primary }]}
+              onPress={handleOpenStats}
+            >
+              <Plus color="#fff" size={32} />
+            </TouchableOpacity>
+          )}
+
+          {/* CAMERA MODAL */}
+          <Modal visible={isCameraOpen} animationType="slide">
+            <View style={{ flex: 1, backgroundColor: '#000' }}>
+              <CameraView
+                style={StyleSheet.absoluteFill}
+                facing="front"
+                ref={cameraRef}
+              />
+              <SafeAreaView style={styles.cameraOverlay}>
+                <TouchableOpacity
+                  onPress={() => setIsCameraOpen(false)}
+                  style={styles.closeCamera}
+                >
+                  <X color="#fff" size={28} />
+                </TouchableOpacity>
+                <View style={styles.shutterContainer}>
+                  <TouchableOpacity
+                    onPress={takeSelfie}
+                    style={styles.shutterBtn}
+                  >
+                    <View style={styles.shutterInner} />
+                  </TouchableOpacity>
+                </View>
+              </SafeAreaView>
+            </View>
+          </Modal>
+
+          {/* SLIDESHOW MODAL */}
+          <Modal visible={isSlideshowOpen} transparent animationType="fade">
+            <View style={styles.modalContainer}>
+              <TouchableOpacity
+                style={styles.closeModalBtn}
+                onPress={() => {
+                  setIsSlideshowOpen(false);
+                  stopSlideshow();
+                }}
+              >
+                <X color="#fff" size={30} />
+              </TouchableOpacity>
+              <Image
+                source={{ uri: images[currentIndex] }}
+                style={styles.fullscreenImage}
+                resizeMode="contain"
+              />
+              <View style={styles.controls}>
+                <TouchableOpacity
+                  onPress={() =>
+                    isPlaying ? stopSlideshow() : startSlideshow()
+                  }
+                  style={styles.controlBtn}
+                >
+                  {isPlaying ? (
+                    <Pause fill="#fff" color="#fff" size={32} />
+                  ) : (
+                    <Play fill="#fff" color="#fff" size={32} />
+                  )}
+                </TouchableOpacity>
+                <Text style={styles.slideCounter}>
+                  {currentIndex + 1} / {images.length}
+                </Text>
+              </View>
+            </View>
+          </Modal>
+        </SafeAreaView>
+      </View>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
-
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     padding: 20,
+    alignItems: 'center',
   },
   iconBtn: {
     padding: 10,
     backgroundColor: 'rgba(128,128,128,0.1)',
     borderRadius: 25,
   },
-  dateTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
-  dateSub: { fontSize: 12, textAlign: 'center' },
-
-  content: { flex: 1, padding: 20 },
-
-  // Empty State
+  dateSelector: { flexDirection: 'row', alignItems: 'center' },
+  dateTitle: { fontSize: 18, fontWeight: '700' },
+  dateSub: { fontSize: 12 },
+  content: { flex: 1, paddingHorizontal: 20 },
+  playButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 14,
+    borderRadius: 16,
+    marginBottom: 20,
+  },
+  playButtonText: { color: '#fff', fontWeight: 'bold', marginLeft: 8 },
+  gridImageContainer: {
+    flex: 1,
+    aspectRatio: 0.8,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  gridImage: { width: '100%', height: '100%' },
+  miniDeleteBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: 6,
+    borderRadius: 12,
+  },
   emptyState: {
     flex: 1,
     borderRadius: 30,
@@ -192,71 +523,96 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(128,128,128,0.05)',
+    marginVertical: 20,
   },
-  captureBtn: { alignItems: 'center' },
-  captureIconCircle: {
+  captureBtnLarge: { alignItems: 'center' },
+  captureCircle: {
     width: 80,
     height: 80,
     borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
   },
   captureText: { fontSize: 20, fontWeight: '600' },
-
-  // Photo State
-  photoContainer: {
-    flex: 1,
-    borderRadius: 30,
-    overflow: 'hidden',
+  fab: {
+    position: 'absolute',
+    bottom: 120,
+    right: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
     elevation: 5,
   },
-  fullImage: { width: '100%', height: '100%' },
-  imageOverlay: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    flexDirection: 'row',
-    gap: 10,
-  },
-  deleteBtn: {
-    flexDirection: 'row',
+
+  // LOGOUT SLIDER
+  logoutWrapper: { paddingHorizontal: 20, paddingBottom: 30 },
+  sliderTrack: {
+    width: SLIDER_WIDTH,
+    height: 62,
+    borderRadius: 31,
+    padding: 4,
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  sliderHandle: {
+    width: BUTTON_SIZE,
+    height: BUTTON_SIZE,
+    borderRadius: BUTTON_SIZE / 2,
+    position: 'absolute',
+    left: 4,
+    top: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+  },
+  sliderText: { fontSize: 16, fontWeight: '600', opacity: 0.6 },
+
+  cameraOverlay: { flex: 1, justifyContent: 'space-between', padding: 20 },
+  closeCamera: {
+    alignSelf: 'flex-end',
+    padding: 10,
+    backgroundColor: 'rgba(0,0,0,0.4)',
     borderRadius: 20,
   },
-  overlayText: { color: '#fff', marginLeft: 8, fontWeight: '600' },
-
-  // Bottom Bar
-  bottomBar: {
-    margin: 20,
-    padding: 20,
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
+  shutterContainer: { width: '100%', alignItems: 'center', paddingBottom: 40 },
+  shutterBtn: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 4,
+    borderColor: '#fff',
+    padding: 4,
   },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  shutterInner: { flex: 1, backgroundColor: '#fff', borderRadius: 40 },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'black',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  infoTitle: { fontSize: 16, fontWeight: 'bold' },
-  miniBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(128,128,128,0.1)',
-    padding: 8,
-    borderRadius: 12,
+  fullscreenImage: { width: width, height: height * 0.8 },
+  closeModalBtn: {
+    position: 'absolute',
+    top: 60,
+    right: 25,
+    zIndex: 10,
+    padding: 10,
+  },
+  controls: { position: 'absolute', bottom: 60, alignItems: 'center' },
+  controlBtn: {
+    padding: 15,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 40,
+  },
+  slideCounter: {
+    color: '#fff',
+    marginTop: 12,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

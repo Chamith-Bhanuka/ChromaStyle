@@ -98,34 +98,11 @@ export default function EditorScreen() {
     [selectedCategory, garmentList]
   );
 
-  // const handleDone = async () => {
-  //   const itemsToSave = Object.keys(customizations) as GarmentType[];
-  //   if (itemsToSave.length === 0) {
-  //     Alert.alert('Nothing to Save', 'Drag a color onto a garment first.');
-  //     return;
-  //   }
-  //
-  //   setIsSaving(true);
-  //   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  //
-  //   try {
-  //     for (const id of itemsToSave) {
-  //       console.log('Going to save with id ', id);
-  //       await addColorToItem(id, customizations[id]);
-  //     }
-  //     router.push('/(tabs)/wardrobe');
-  //   } catch (error) {
-  //     Alert.alert('Error', 'Could not sync with Firebase');
-  //   } finally {
-  //     setIsSaving(false);
-  //   }
-  // };
-
   const handleDone = async () => {
-    // 1. Get the list of garment IDs that actually have a customization assigned
+    // get the list of garment IDs that have a customization assigned
     const customizedIds = Object.keys(customizations) as GarmentType[];
 
-    // 2. If nothing was customized, let the user know and stop
+    // If nothing was customized, let the user know and stop
     if (customizedIds.length === 0) {
       Alert.alert(
         'Nothing to Save',
@@ -138,7 +115,7 @@ export default function EditorScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     try {
-      // 3. Save only the customized items in parallel for better performance
+      // save only the customized items
       await Promise.all(
         customizedIds.map(async (id) => {
           const color = customizations[id];
@@ -149,7 +126,6 @@ export default function EditorScreen() {
         })
       );
 
-      // 4. Navigate only after all saves are successful
       router.replace('/(tabs)/wardrobe');
     } catch (error) {
       console.error('Save Error:', error);
