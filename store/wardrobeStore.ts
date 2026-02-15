@@ -40,6 +40,8 @@ interface WardrobeState {
 
   setOutfitForDate: (date: string, outfit: Outfit) => void;
   setOutfitImage: (date: string, uri: string) => void;
+
+  setAIOutfits: (newOutfits: Record<string, Outfit>) => void;
   autoGenerateWeek: (startDate: Date, useAI: boolean) => void;
 }
 
@@ -65,7 +67,6 @@ export const useWardrobeStore = create<WardrobeState>()(
         const existing = state.items.find((i) => i.id === id);
         if (existing && existing.colors.includes(color)) return;
 
-        // Optimistic Update
         let newItems;
         if (existing) {
           newItems = state.items.map((i) =>
@@ -76,7 +77,6 @@ export const useWardrobeStore = create<WardrobeState>()(
         }
         set({ items: newItems });
 
-        // Firebase Sync
         await addColorToGarment(id, color);
       },
 
@@ -88,7 +88,6 @@ export const useWardrobeStore = create<WardrobeState>()(
         const colorToRemove = item.colors[index];
         const isLastColor = item.colors.length === 1;
 
-        // Optimistic Update
         const newItems = state.items
           .map((i) => {
             if (i.id === id) {
@@ -101,7 +100,6 @@ export const useWardrobeStore = create<WardrobeState>()(
           .filter((i) => i.colors.length > 0);
         set({ items: newItems });
 
-        // Firebase Sync
         await removeColorFromGarment(id, colorToRemove, isLastColor);
       },
 
@@ -113,14 +111,12 @@ export const useWardrobeStore = create<WardrobeState>()(
         const newColorsList = [...item.colors];
         newColorsList[index] = newColor;
 
-        // Optimistic Update
         set({
           items: state.items.map((i) =>
             i.id === id ? { ...i, colors: newColorsList } : i
           ),
         });
 
-        // Firebase Sync
         await updateGarmentColorArray(id, newColorsList);
       },
 
@@ -145,6 +141,11 @@ export const useWardrobeStore = create<WardrobeState>()(
           };
         }),
 
+      setAIOutfits: (newOutfits) =>
+        set((state) => ({
+          outfits: { ...state.outfits, ...newOutfits },
+        })),
+
       autoGenerateWeek: (startDate, useAI) => {
         const state = get();
         const newOutfits = { ...state.outfits };
@@ -165,9 +166,18 @@ export const useWardrobeStore = create<WardrobeState>()(
           const d = new Date(startDate);
           d.setDate(d.getDate() + i);
           const dateKey = d.toISOString().split('T')[0];
+
+          // existing shuffle functionality
           if (!newOutfits[dateKey]) {
             newOutfits[dateKey] = {
               date: dateKey,
+              top: pickRandom('Tops'),
+              bottom: pickRandom('Bottoms'),
+              footwear: pickRandom('Footwear'),
+            };
+          } else {
+            newOutfits[dateKey] = {
+              ...newOutfits[dateKey],
               top: pickRandom('Tops'),
               bottom: pickRandom('Bottoms'),
               footwear: pickRandom('Footwear'),
