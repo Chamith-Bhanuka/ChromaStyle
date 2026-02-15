@@ -20,7 +20,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     showLoader();
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(null);
+      setUser(currentUser);
       hideLoader();
     });
     // Cleanup subscription on unmount
