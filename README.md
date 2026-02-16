@@ -176,7 +176,7 @@ ChromaStyle utilizes a robust Service-Store Architecture to maintain a fast UI a
 ## 📦 Download Build
 You can download the latest pre-compiled build for testing on Android devices here:
 
-[⬇️ Download ChromaStyle v1.0.0 (APK)](https://github.com/Chamith-Bhanuka/)
+[⬇️ Download ChromaStyle v1.0.0 (APK)](https://expo.dev/accounts/chamith_bhanuka/projects/ChromaStyle/builds/e663fa30-bd57-4974-96ae-5f282320f143)
 
 ---
 
