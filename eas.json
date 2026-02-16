@@ -14,14 +14,14 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_KEY": "YOUR_VALUE",
-        "EXPO_PUBLIC_AUTH_DOMAIN": "chroma.firebaseapp.com",
-        "EXPO_PUBLIC_PROJECT_ID": "YOUR_VALUE",
-        "EXPO_PUBLIC_STORAGE_BUCKET": "YOUR_VALUE",
-        "EXPO_PUBLIC_MESSAGING_SENDER_ID": "YOUR_VALUE",
-        "EXPO_PUBLIC_APP_ID": "YOUR_VALUE",
-        "EXPO_PUBLIC_MEASUREMENT_ID": "YOUR_VALUE",
-        "EXPO_PUBLIC_GEMINI_API_KEY": "YOUR_VALUE"
+        "EXPO_PUBLIC_API_KEY": "AIzaSyCtJSl4sf9AtlHq45nCZscoRRkCGM1t_uE",
+        "EXPO_PUBLIC_AUTH_DOMAIN": "chroma-style-b3d7c.firebaseapp.com",
+        "EXPO_PUBLIC_PROJECT_ID": "chroma-style-b3d7c",
+        "EXPO_PUBLIC_STORAGE_BUCKET": "chroma-style-b3d7c.firebasestorage.app",
+        "EXPO_PUBLIC_MESSAGING_SENDER_ID": "920294731639",
+        "EXPO_PUBLIC_APP_ID": "1:920294731639:web:b8d3587cca11220a8ffb72",
+        "EXPO_PUBLIC_MEASUREMENT_ID": "G-0B1Y1932SK",
+        "EXPO_PUBLIC_GEMINI_API_KEY": "AIzaSyDGeVTdR0MG3e8bKAegz04KIKxPPUoAh-c"
       }
     },
     "production": {
