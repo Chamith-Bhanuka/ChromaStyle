@@ -7,14 +7,9 @@
     "icon": "./assets/images/icon.png",
     "scheme": "chromastyle",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true
-    },
-    "androidNavigationBar": {
-      "visible": "sticky-immersive",
-      "backgroundColor": "#000000",
-      "barStyle": "light-content"
     },
     "android": {
       "adaptiveIcon": {
@@ -25,17 +20,12 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
+      "package": "com.chamith_bhanuka.ChromaStyle",
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
-        "android.permission.ACCESS_MEDIA_LOCATION",
-        "android.permission.READ_MEDIA_AUDIO",
-        "android.permission.READ_MEDIA_IMAGES"
-      ],
-      "package": "com.chamith_bhanuka.ChromaStyle"
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "output": "static",
